@@ -1,49 +1,6 @@
 (function(){
 
-    var Block = function(){
-        this.x = 0;
-        this.y = 0;
-
-        this.height = 40;
-        this.width = 40;
-
-        this.bounds = new ObjectBounds( this.x, this.y, this.width, this.height );
-    }
-
-    Block.prototype = {
-
-        render: function(){
-            this.draw();
-        },
-        draw: function(){
-            var ctx = this.parent.getContext();
-
-            ctx.beginPath();
-            ctx.fillStyle = "#fff";
-            ctx.rect( this.x , this.y, this.width, this.height );
-            ctx.fill();
-            ctx.closePath();
-        },
-        getBounds: function(){
-
-            this.bounds.set( this.x, this.y, this.width, this.height );
-
-            return this.bounds;
-        },
-        intersectWith: function(){
-
-        }
-    }
-
-    window.Block = Block;
-
-})();
-;(function(){
-
-    var _initialized = false,
-
-        V_CELLS = 8,
-        H_CELLS = 6;
+    var _initialized = false;
 
     var Game = function(canvasID){
         var that = this;
@@ -183,7 +140,100 @@
         }
     }
 
+    //window.Game = Game;
+})();
+;(function(){
+
+    var Block = function(){
+        this.x = 0;
+        this.y = 0;
+
+        this.height = 40;
+        this.width = 40;
+
+        this.bounds = new ObjectBounds( this.x, this.y, this.width, this.height );
+    }
+
+    Block.prototype = {
+
+        render: function(){
+            this.draw();
+        },
+        draw: function(){
+            var ctx = this.parent.getContext();
+
+            ctx.beginPath();
+            ctx.fillStyle = "#fff";
+            ctx.rect( this.x , this.y, this.width, this.height );
+            ctx.fill();
+            ctx.closePath();
+        },
+        getBounds: function(){
+
+            this.bounds.set( this.x, this.y, this.width, this.height );
+
+            return this.bounds;
+        },
+        intersectWith: function(){
+
+        }
+    }
+
+    window.Block = Block;
+
+})();
+;(function(){
+
+    var _screen = null,     // holds a reference to the current screen
+        _a,
+        _canvas,
+        _ctx;
+
+    var Game = function(canvasId){
+
+        _canvas = document.getElementById('spikes');
+        _ctx = _canvas.getContext('2d');
+
+        Game.width = _canvas.width;
+        Game.height = _canvas.height;
+    }
+
+    Game.prototype = {
+
+        change: function(screen) {
+
+            if(null!=_screen){
+                _screen.destroy();
+            }
+
+            _screen = new screen();
+            _screen.initialize();
+            _screen.parent = this;
+
+        },
+
+        update: function(){
+            _drawBackground();
+            _screen.update();
+        },
+
+        getContext: function(){
+            return _ctx;
+        }
+    }
+
+
+    function _drawBackground(){
+        _ctx.clearRect(0, 0, _canvas.width, _canvas.height);
+        _ctx.fillStyle = "#000";
+        _ctx.beginPath();
+        _ctx.rect(0,0,_canvas.width,_canvas.height);
+        _ctx.fill();
+        _ctx.closePath();
+    }
+
     window.Game = Game;
+
 })();
 ;(function(){
 
@@ -271,7 +321,7 @@
             if( b.name === 'leftWall' || b.name === 'rightWall' ){
                 _vx = -_vx;
 
-                this.parent.touchedWalls();
+                //this.parent.touchedWalls();
             }
 
             if( b.name === 'spike' ){
@@ -300,6 +350,7 @@
     Spike.prototype = {
         render: function(){
             this.draw();
+
         },
         draw: function(){
             var ctx = this.parent.getContext();
@@ -334,3 +385,215 @@
 
     window.Spike = Spike;
 })()
+;;(function(){
+
+    var _dir = 'right',     // current direction
+        _a,
+        _children = [],     // all children
+        _spikes;            // all active spikes
+
+    var Level = function()
+    {
+
+        this.player = new Player();
+        this.spikes = [];
+        this.spikesDir = _dir;
+
+    }
+
+    Level.prototype = {
+
+        initialize: function(){
+
+            this.addChild(this.player);
+            this.x = Game.width - this.player.width/2;
+
+            var leftWall = new Block();
+            leftWall.width = 10;
+            leftWall.height = Game.height;
+            leftWall.name = 'leftWall';
+
+            var rightWall = new Block();
+            rightWall.width = 10;
+            rightWall.height = Game.height;
+            rightWall.x = Game.width - 10;
+            rightWall.name = 'rightWall';
+
+            this.addChild(leftWall);
+            this.addChild(rightWall);
+
+            //document.addEventListener('click', this.click.bind(this) );
+
+            this.scopedKeyPress = this.onKeyUp.bind(this);
+
+            window.addEventListener('keyup', this.scopedKeyPress);
+
+            this.generateSpikes();
+        },
+
+        update: function(){
+
+            this.checkCollisions();
+
+            _children.forEach(function(c){
+                c.render();
+            });
+        },
+
+        addChild: function( child ){
+            child.parent = this;
+            _children.push( child );
+        },
+
+        destroy: function(){
+
+        },
+
+        click: function(){
+            this.player.jump();
+        },
+
+        getContext: function(){
+            return this.parent.getContext();
+        },
+
+        checkCollisions: function(){
+
+            var _this = this;
+
+            _children.forEach(function(a){
+                _children.forEach(function(b){
+
+                    if( a.name === b.name ) return;
+
+                    if( a.getBounds().intersects(b.getBounds()) ){
+                        a.intersectWith.call( a, b );
+                    }
+
+                });
+            });
+        },
+
+        onKeyUp: function(evt){
+            if(evt.keyCode===13) this.player.jump();
+        },
+
+        generateSpikes: function(){
+            var h = Game.height,
+                maxSpikes = 6,
+                spikeHeight = h/maxSpikes,
+                i = 0,
+                s;
+
+
+                for( i ; i < this.spikes.length; i++ ){
+                    this.removeChild(this.spikes[i]);
+                }
+
+                this.spikes=[];
+
+                i = 0;
+
+                for( i; i < maxSpikes; i++ ){
+
+                    if( i === 2 || i === 4 ) continue;
+
+                    s = new Spike();
+                    s.name = 'spike';
+                    s.direction = this.spikesDir;
+
+                    s.x = this.spikesDir === 'left' ? 10 : (Game.height-10) - 40;
+                    s.y = (i*spikeHeight) + (spikeHeight/2) - (s.height/2);
+
+                    this.addChild(s);
+
+                    this.spikes.push(s);
+                }
+        }
+    }
+
+    window.Level = Level;
+
+})();
+;(function(){
+
+    var Menu = function(){
+
+
+        this.buttons = [
+            { label: 'Play', screen: Level },
+            { label: 'High Scores', screen: 0 },
+            { label: 'Credits', screen: 0 },
+        ];
+
+        this.selectedIndex = 0;
+
+        this.scopedKeyPress = this.onKeyPress.bind(this);
+
+        window.addEventListener('keyup', this.scopedKeyPress );
+    }
+
+    Menu.prototype = {
+
+        initialize: function(){
+
+        },
+
+        update: function(){
+            this.draw();
+        },
+
+        draw: function(){
+
+            var _this = this;
+
+            _this.parent.getContext().font = "48px sans-serif";
+            _this.parent.getContext().fillStyle = "#fff";
+            _this.parent.getContext().fillText("MENU", 20, 120);
+
+            _this.buttons.forEach(function(item, index){
+
+                var offset = index === _this.selectedIndex ? 20 : 0;
+
+                var selected = _this.selectedIndex === index;
+
+                _this.parent.getContext().font = "24px sans-serif";
+                _this.parent.getContext().fillStyle = selected ? "#fff" : "#666";
+                _this.parent.getContext().fillText( item.label.toUpperCase(), 50, 200+(index*45));
+
+                if( index === _this.selectedIndex ){
+                    _this.parent.getContext().beginPath();
+                    _this.parent.getContext().fillStyle = "#fff";
+                    _this.parent.getContext().rect(26, 186+(index*45), 10, 10);
+                    _this.parent.getContext().fill();
+                    _this.parent.getContext().closePath();
+                }
+
+            });
+
+        },
+
+        onKeyPress: function(evt){
+
+
+            switch(evt.keyCode){
+                case 38:
+                    if( this.selectedIndex > 0 ) this.selectedIndex--;
+                break;
+                case 40:
+                    if( this.selectedIndex < this.buttons.length-1 ) this.selectedIndex++;
+                break;
+                case 13:
+                    this.parent.change( this.buttons[this.selectedIndex].screen );
+                break;
+            }
+        },
+
+        destroy: function(){
+            window.removeEventListener('keyup', this.scopedKeyPress );
+        }
+    }
+
+    window.Menu = Menu;
+
+})();

@@ -15,6 +15,7 @@
     Spike.prototype = {
         render: function(){
             this.draw();
+
         },
         draw: function(){
             var ctx = this.parent.getContext();

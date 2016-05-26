@@ -61,7 +61,7 @@
             if( b.name === 'leftWall' || b.name === 'rightWall' ){
                 _vx = -_vx;
 
-                this.parent.touchedWalls();
+                //this.parent.touchedWalls();
             }
 
             if( b.name === 'spike' ){

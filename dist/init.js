@@ -36,12 +36,13 @@
     function domReady(){
         var game = new Game('spikes');
 
+        game.change(Menu);
 
-        game.init();
+        //game.init();
 
         requestAnimationFrame(function update(){
 
-            game.render();
+            game.update();
 
             requestAnimationFrame(update);
         });
