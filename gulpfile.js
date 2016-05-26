@@ -5,11 +5,11 @@ var gulp = require('gulp'),
 
 
 gulp.task('js-concat', function(){
-    gulp.src(['src/**/*.js','src/*.js'])
+    gulp.src(['src/*.js','src/**/*.js'])
         .pipe(plumber())
         .pipe(concat('bundle.js', {newLine:';'}))
         .pipe(gulp.dest('dist/'))
-        .pipe(plumber.stop())
+        .pipe(plumber.stop());
 });
 
 
