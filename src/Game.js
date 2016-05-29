@@ -41,7 +41,7 @@
 
     function _drawBackground(){
         _ctx.clearRect(0, 0, _canvas.width, _canvas.height);
-        _ctx.fillStyle = "#000";
+        _ctx.fillStyle = "#008299";
         _ctx.beginPath();
         _ctx.rect(0,0,_canvas.width,_canvas.height);
         _ctx.fill();

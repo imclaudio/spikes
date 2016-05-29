@@ -1,52 +1,83 @@
 (function(){
 
     var Player,
-        _width = 40,
-        _height = 40;
-
+        _velocity = [5,0],
         _gravity = 0.25,
         _vy = 0,
         _jumpVelocity = -7,
         _py = 0,
         _vx = 5,
         _px = 0,
-        _py = 0;
+        _py = 0,
+        _state = 'alive';
 
-    Player = function(){
+    Player = function( x, y){
         this.parent = null;
-        this.x = 80;
-        this.y = 0;
-        this.width = _width;
-        this.height = _height;
-        this.regX = _width*.5;
-        this.regY = _height*.5;
+        this.currentAnimationName = 'forwards';
 
         this.direction = 'right';
 
+        _px = x;
+        _py = y;
+
+        _vx = _velocity[0];
+
+        this.state = 'iddle';
+
+        this.events = new Events();
+
+        var _spritesheetData = {
+            forwards: { frames: [0,1], loop: true },
+            backwards: { frames: [2,3], loop: true }
+        };
+
+        this.animation = new Spritesheet('images/bird.png', 65, 40, _spritesheetData, 'vertical');
+        this.animation.setFPS(7);
+        this.animation.playAnimation(this.currentAnimationName);
+
+        this.width = this.animation.width;
+        this.height = this.animation.height;
+
         this.bounds = new ObjectBounds( this.x, this.y, this.width, this.height );
 
-        _px = this.x;
+        this.animation.events.on('animationend', function(args){
+
+        });
     }
 
     Player.prototype = {
         render: function(){
+
             this.draw();
         },
         draw: function(){
 
-            _vy += _gravity;
-            _py += _vy;
 
-            _px += _vx;
+            if(this.state === 'alive'){
+                _vy += _gravity;
+                _py += _vy;
 
-            this.y = _py;
-            this.x = _px;
+                _px += _vx;
 
-            this.parent.getContext().beginPath();
-            this.parent.getContext().fillStyle = "#fff";
-            this.parent.getContext().rect( _px , _py , _width, _height);
+                this.y += _vy;
+                this.x += _vx;
+            }
+
+            if( !this.animation.parent ) this.animation.parent = this;
+
+            if(this.state !== 'dead'){
+                this.animation.render();
+                this.animation.x = this.x;
+                this.animation.y = this.y;
+            }
+
+
+
+            /*this.parent.getContext().beginPath();
+            this.parent.getContext().fillStyle = "rgba(0,0,0,0.5)";
+            this.parent.getContext().rect( this.x , this.y , this.width, this.height);
             this.parent.getContext().fill();
-            this.parent.getContext().closePath();
+            this.parent.getContext().closePath();*/
         },
         jump: function(){
             _vy = _jumpVelocity;
@@ -61,13 +92,35 @@
             if( b.name === 'leftWall' || b.name === 'rightWall' ){
                 _vx = -_vx;
 
-                //this.parent.touchedWalls();
+                this.currentAnimationName = this.currentAnimationName === 'forwards' ? 'backwards' : 'forwards';
+                this.animation.playAnimation(this.currentAnimationName)
+
+                this.events.dispatch('touchedWalls',[b.name]);
             }
 
             if( b.name === 'spike' ){
-                console.log('spike')
+                this.events.dispatch('touchedSpike')
             }
-        }
+        },
+        setPosition: function(x,y){
+
+            _px = x;
+            _py = y;
+
+            this.x = _px;
+            this.y = _py;
+
+            this.bounds.set(this.x, this.y, this.width, this.height);
+        },
+        reset: function(){
+            _vx = _velocity[0];
+            _vy = _velocity[1];
+        },
+        getContext: function(){
+            return this.parent.getContext();
+        },
+
+        destroy: function(){}
     }
 
 

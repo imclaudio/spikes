@@ -36,7 +36,7 @@
     function domReady(){
         var game = new Game('spikes');
 
-        game.change(Menu);
+        game.change(Level);
 
         //game.init();
 
