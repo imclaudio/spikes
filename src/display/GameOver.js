@@ -31,11 +31,11 @@
             this.parent.getContext().closePath();
 
 
-            this.parent.getContext().font = "38px sans-serif";
+            this.parent.getContext().font = "38px Luckiest Guy, sans-serif";
             this.parent.getContext().fillStyle = "#fff";
             this.parent.getContext().fillText( 'GAME OVER', 50, 140);
 
-            this.parent.getContext().font = "28px sans-serif";
+            this.parent.getContext().font = "28px Indie Flower, sans-serif";
             this.parent.getContext().fillStyle = "#fff";
             this.parent.getContext().fillText('Your score: ' + this.score.toString(), 50, 220);
             this.parent.getContext().fillText('Highest score: ' + this.score.toString(), 50, 256);
@@ -48,7 +48,7 @@
 
                 var selected = _this.selectedIndex === index;
 
-                _this.parent.getContext().font = "24px sans-serif";
+                _this.parent.getContext().font = "24px Luckiest Guy, sans-serif";
                 _this.parent.getContext().fillStyle = selected ? "#fff" : "rgba(255,255,255,0.2)";
                 _this.parent.getContext().fillText( item.label.toUpperCase(), 50, 460+(index*45));
 

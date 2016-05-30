@@ -34,9 +34,11 @@
     window.addEventListener('DOMContentLoaded', domReady);
 
     function domReady(){
+
         var game = new Game('spikes');
 
-        game.change(Level);
+
+        game.change(Splash);
 
         //game.init();
 

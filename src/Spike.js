@@ -23,7 +23,7 @@
                     bumpIn: { frames: [0,1,2,3], loop: false }
                 };
 
-                this.animation = new Spritesheet('images/left-spikes.png', 24, 56, _spritesheetData, 'vertical');
+                this.animation = new Spritesheet( Game.assets.get('leftSpikes') , 24, 56, _spritesheetData, 'vertical');
                 this.animation.setFPS(30);
                 this.animation.playAnimation('bumpIn');
 
@@ -36,7 +36,7 @@
                     bumpIn: { frames: [0,1,2,3], loop: false }
                 };
 
-                this.animation = new Spritesheet('images/right-spikes.png', 24, 56, _spritesheetData, 'vertical');
+                this.animation = new Spritesheet(Game.assets.get('rightSpikes') , 24, 56, _spritesheetData, 'vertical');
                 this.animation.setFPS(30);
                 this.animation.playAnimation('bumpIn');
 
@@ -49,7 +49,7 @@
                     bumpIn: { frames: [0,1,2,3], loop: true }
                 };
 
-                this.animation = new Spritesheet('images/top-spikes.png', 56, 24, _spritesheetData, 'horizontal');
+                this.animation = new Spritesheet( Game.assets.get('topSpikes'), 56, 24, _spritesheetData, 'horizontal');
                 this.animation.setFPS(5);
                 this.animation.playAnimation('bumpIn');
 
@@ -62,7 +62,7 @@
                     bumpIn: { frames: [0,1,2,3], loop: true }
                 };
 
-                this.animation = new Spritesheet('images/bottom-spikes.png', 56, 24, _spritesheetData, 'horizontal');
+                this.animation = new Spritesheet( Game.assets.get('bottomSpikes'), 56, 24, _spritesheetData, 'horizontal');
                 this.animation.setFPS(5);
                 this.animation.playAnimation('bumpIn');
 
@@ -72,6 +72,7 @@
         }
 
         this.bounds = new ObjectBounds( this.x, this.y, this.width, this.height );
+        this.events = new Events();
     }
 
     Spike.prototype = {
@@ -81,13 +82,7 @@
         draw: function(){
             var ctx = this.parent.getContext();
 
-            //ctx.beginPath();
-            //ctx.fillStyle = "#00A0B1";
-
             if( this.direction === 'left') {
-                //ctx.moveTo( this.x, this.y );
-                //ctx.lineTo( this.x + this.width, this.y+(this.height/2) );
-                //ctx.lineTo( this.x, this.y+this.height );
 
                 if( !this.animation.parent ) this.animation.parent = this.parent;
 
@@ -114,9 +109,6 @@
                 this.animation.y = this.y;
                 this.animation.render();
             }
-
-            //ctx.closePath();
-            //ctx.fill();
         },
         getBounds: function(){
             this.bounds.set(this.x, this.y, this.width, this.height);

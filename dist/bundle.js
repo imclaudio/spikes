@@ -1,26 +1,125 @@
 (function(){
 
-    var Block = function(image){
-        this.x = 0;
-        this.y = 0;
+    function AssetsManager(){
+        this.index = -1;
+        this.assets = [];
+        this.map = {};
 
-        this.height = 40;
-        this.width = 40;
+        this._isLoading = false;
 
-        this.bounds = new ObjectBounds( this.x, this.y, this.width, this.height );
+        this.events = new Events();
 
-        this.image = null;
+        this.progress = 0;
+    }
 
-        if(image){
-            var _img = new Image(), _this = this;
-            _img.src = image;
-            _img.onload = function(){
-                _this._isLoaded = true;
+    AssetsManager.prototype = {
+
+
+        start: function(){
+            this.loadNext();
+        },
+
+        loadNext: function()
+        {
+            var _asset = this.assets[++this.index],
+                _path = _asset.path,
+                loader;
+
+            this._isLoading=true;
+
+
+            switch( _path.split('.').pop().toLowerCase() ){
+                case 'png':
+                case 'jpg':
+                case 'jpeg':
+                    loader = new Image();
+                    loader.onload = this.assetLoaded.bind(this,loader,this.index);
+                    loader.onerror = this.assetError.bind(this,loader,this.index);
+                    loader.src = _path;
+                break;
+                case 'mp3':
+                    loader = new Audio();
+                    loader.oncanplaythrough = this.assetLoaded.bind(this,loader,this.index);
+                    loader.onerror = this.assetError.bind(this,loader,this.index);
+                    loader.src = _path;
+                break;
             }
-            this.image = _img;
+        },
+
+        assetLoaded: function( loader, index )
+        {
+            this.assets[index].response = loader;
+            this.assets[index].loaded = true;
+
+            this.events.dispatch('fileload',[this]);
+
+
+            if( this.index === this.assets.length-1 ){
+                this.progress = 1;
+                this.events.dispatch('complete');
+            } else {
+                this.progress = this.index/this.assets.length;
+                this.loadNext();
+            }
+
+        },
+
+        assetError: function( loader, index ){
+
+            this.events.dispatch('filerror');
+
+            if( this.index === this.assets.length-1 ){
+                this.events.dispatch('complete');
+            } else {
+                this.loadNext();
+            }
+        },
+
+        add: function(manifest){
+
+            for( var key in manifest ){
+                if( !this.map.hasOwnProperty(key) ){
+                    this.assets.push({
+                        path: manifest[key],
+                        response: null,
+                        loaded: false
+                    });
+                    this.map[key] = this.assets.length-1;
+                }
+            }
+        },
+
+        playSound: function(name){
+            var index = this.map[name];
+
+            if( index > -1 ){
+                this.assets[index].response.play();
+            }
+        },
+
+        get: function(name){
+            if( this.map[name] > -1 ){
+                return this.assets[this.map[name]].response;
+            }
         }
 
-        this._isLoaded = false;
+    }
+
+    window.AssetsManager = AssetsManager;
+
+
+})();
+;(function(){
+
+    var Block = function(image)
+    {
+        this.x = 0;
+        this.y = 0;
+        this.height = 40;
+        this.width = 40;
+        this.bounds = new ObjectBounds( this.x, this.y, this.width, this.height );
+        this.image = image;
+        this.events = new Events();
     }
 
     Block.prototype = {
@@ -30,22 +129,7 @@
         },
         draw: function(){
             var ctx = this.parent.getContext();
-
-            ctx.beginPath();
-            ctx.fillStyle = "#00A0B1";
-            ctx.rect( this.x , this.y, this.width, this.height );
-            ctx.fill();
-            ctx.closePath();
-
-            if( this.image != null && this._isLoaded ){
-                ctx.drawImage( this.image, 0, 0, this.width, this.height, this.x, this.y, this.width, this.height );
-            } else {
-                ctx.beginPath();
-                ctx.fillStyle = "#00A0B1";
-                ctx.rect( this.x , this.y, this.width, this.height );
-                ctx.fill();
-                ctx.closePath();
-            }
+            ctx.drawImage( this.image, 0, 0, this.width, this.height, this.x, this.y, this.width, this.height );
         },
         getBounds: function(){
 
@@ -136,6 +220,8 @@
 
         Game.width = _canvas.width;
         Game.height = _canvas.height;
+
+        Game.assets = null;
     }
 
     Game.prototype = {
@@ -165,7 +251,7 @@
 
     function _drawBackground(){
         _ctx.clearRect(0, 0, _canvas.width, _canvas.height);
-        _ctx.fillStyle = "#008299";
+        _ctx.fillStyle = "#000";
         _ctx.beginPath();
         _ctx.rect(0,0,_canvas.width,_canvas.height);
         _ctx.fill();
@@ -179,7 +265,8 @@
 
 
     var ObjectBounds = function(x,y,w,h){
-        this.set(x,y,w,h)
+
+        this.set(x,y,w,h);
     }
 
     ObjectBounds.prototype = {
@@ -188,6 +275,10 @@
             return a.x1 < b.x2 && a.x2 > b.x1 && a.y1 < b.y2 && a.y2 > b.y1;
         },
         set: function( x,y,w,h ){
+            this._x = x;
+            this._y = y;
+            this._width = w;
+            this._height = h;
             this.x1 = x;
             this.y1 = y;
             this.x2 = x+w;
@@ -284,12 +375,12 @@
         _velocity = [5,0],
         _gravity = 0.25,
         _vy = 0,
-        _jumpVelocity = -7,
+        _jumpVelocity = -5,
         _py = 0,
         _vx = 5,
         _px = 0,
         _py = 0,
-        _state = 'alive';
+        _state = 'iddle';
 
     Player = function( x, y){
         this.parent = null;
@@ -311,7 +402,7 @@
             backwards: { frames: [2,3], loop: true }
         };
 
-        this.animation = new Spritesheet('images/bird.png', 65, 40, _spritesheetData, 'vertical');
+        this.animation = new Spritesheet( Game.assets.get('bird'), 65, 40, _spritesheetData, 'vertical');
         this.animation.setFPS(7);
         this.animation.playAnimation(this.currentAnimationName);
 
@@ -320,9 +411,11 @@
 
         this.bounds = new ObjectBounds( this.x, this.y, this.width, this.height );
 
-        this.animation.events.on('animationend', function(args){
+        this.events.on('intersect', this.onIntersect.bind(this) );
 
-        });
+        this.name = 'player';
+
+        this._jumpSound = Game.assets.get('jump');
     }
 
     Player.prototype = {
@@ -350,17 +443,13 @@
                 this.animation.x = this.x;
                 this.animation.y = this.y;
             }
-
-
-
-            /*this.parent.getContext().beginPath();
-            this.parent.getContext().fillStyle = "rgba(0,0,0,0.5)";
-            this.parent.getContext().rect( this.x , this.y , this.width, this.height);
-            this.parent.getContext().fill();
-            this.parent.getContext().closePath();*/
         },
-        jump: function(){
-            _vy = _jumpVelocity;
+        jump: function(perc){
+            perc = perc*1.5;
+            _vy = _jumpVelocity + (_jumpVelocity*perc);
+
+            this._jumpSound.currentTime = 0;
+            this._jumpSound.play();
         },
         getBounds: function(){
 
@@ -368,7 +457,8 @@
 
             return this.bounds;
         },
-        intersectWith: function( b ){
+
+        onIntersect: function( b ){
             if( b.name === 'leftWall' || b.name === 'rightWall' ){
                 _vx = -_vx;
 
@@ -431,7 +521,7 @@
                     bumpIn: { frames: [0,1,2,3], loop: false }
                 };
 
-                this.animation = new Spritesheet('images/left-spikes.png', 24, 56, _spritesheetData, 'vertical');
+                this.animation = new Spritesheet( Game.assets.get('leftSpikes') , 24, 56, _spritesheetData, 'vertical');
                 this.animation.setFPS(30);
                 this.animation.playAnimation('bumpIn');
 
@@ -444,7 +534,7 @@
                     bumpIn: { frames: [0,1,2,3], loop: false }
                 };
 
-                this.animation = new Spritesheet('images/right-spikes.png', 24, 56, _spritesheetData, 'vertical');
+                this.animation = new Spritesheet(Game.assets.get('rightSpikes') , 24, 56, _spritesheetData, 'vertical');
                 this.animation.setFPS(30);
                 this.animation.playAnimation('bumpIn');
 
@@ -457,7 +547,7 @@
                     bumpIn: { frames: [0,1,2,3], loop: true }
                 };
 
-                this.animation = new Spritesheet('images/top-spikes.png', 56, 24, _spritesheetData, 'horizontal');
+                this.animation = new Spritesheet( Game.assets.get('topSpikes'), 56, 24, _spritesheetData, 'horizontal');
                 this.animation.setFPS(5);
                 this.animation.playAnimation('bumpIn');
 
@@ -470,7 +560,7 @@
                     bumpIn: { frames: [0,1,2,3], loop: true }
                 };
 
-                this.animation = new Spritesheet('images/bottom-spikes.png', 56, 24, _spritesheetData, 'horizontal');
+                this.animation = new Spritesheet( Game.assets.get('bottomSpikes'), 56, 24, _spritesheetData, 'horizontal');
                 this.animation.setFPS(5);
                 this.animation.playAnimation('bumpIn');
 
@@ -480,6 +570,7 @@
         }
 
         this.bounds = new ObjectBounds( this.x, this.y, this.width, this.height );
+        this.events = new Events();
     }
 
     Spike.prototype = {
@@ -489,13 +580,7 @@
         draw: function(){
             var ctx = this.parent.getContext();
 
-            //ctx.beginPath();
-            //ctx.fillStyle = "#00A0B1";
-
             if( this.direction === 'left') {
-                //ctx.moveTo( this.x, this.y );
-                //ctx.lineTo( this.x + this.width, this.y+(this.height/2) );
-                //ctx.lineTo( this.x, this.y+this.height );
 
                 if( !this.animation.parent ) this.animation.parent = this.parent;
 
@@ -522,9 +607,6 @@
                 this.animation.y = this.y;
                 this.animation.render();
             }
-
-            //ctx.closePath();
-            //ctx.fill();
         },
         getBounds: function(){
             this.bounds.set(this.x, this.y, this.width, this.height);
@@ -543,6 +625,67 @@
 {
     return Math.floor(Math.random()*(max-min+1)+min);
 }
+;(function(){
+
+    var _gravity = 0.25;
+
+    // coin class
+    function Coin(){
+        var _spritesheetData;
+
+        // coin flip animation
+        _spritesheetData = {
+            flip: { frames: [0,1,2,3,4,5,6,7], loop: true }
+        };
+
+        this.animation = new Spritesheet( Game.assets.get('coin') , 32, 32, _spritesheetData, 'horizontal');
+        this.animation.setFPS(7);
+        this.animation.playAnimation('flip');
+
+        this.width = this.animation.width;
+        this.height = this.animation.height;
+        this.vy = 0;
+        this.bounds = new ObjectBounds( this.x, this.y, this.width, this.height );
+        this.events = new Events();
+        this.name = 'coin';
+
+        this._collectedSound = Game.assets.get('coinCollected');
+        this.events.on('collected', this.onCollected.bind(this) );
+    }
+
+    Coin.prototype = {
+
+        render: function()
+        {
+            if( !this.animation.parent ) this.animation.parent = this;
+            this.vy += _gravity;
+            this.y += this.vy;
+            this.animation.render();
+            this.animation.x = this.x;
+            this.animation.y = this.y;
+        },
+        getBounds: function()
+        {
+            this.bounds.set(this.x, this.y, this.width, this.height);
+            return this.bounds;
+        },
+        getContext: function()
+        {
+            return this.parent.getContext();
+        },
+        destroy: function()
+        {
+
+        },
+        onCollected: function()
+        {
+            this._collectedSound.currentTime = 0;
+            this._collectedSound.play();
+        }
+    };
+
+    window.Coin = Coin;
+})();
 ;;(function(){
 
     function GameOver( score ){
@@ -576,11 +719,11 @@
             this.parent.getContext().closePath();
 
 
-            this.parent.getContext().font = "38px sans-serif";
+            this.parent.getContext().font = "38px Luckiest Guy, sans-serif";
             this.parent.getContext().fillStyle = "#fff";
             this.parent.getContext().fillText( 'GAME OVER', 50, 140);
 
-            this.parent.getContext().font = "28px sans-serif";
+            this.parent.getContext().font = "28px Indie Flower, sans-serif";
             this.parent.getContext().fillStyle = "#fff";
             this.parent.getContext().fillText('Your score: ' + this.score.toString(), 50, 220);
             this.parent.getContext().fillText('Highest score: ' + this.score.toString(), 50, 256);
@@ -593,7 +736,7 @@
 
                 var selected = _this.selectedIndex === index;
 
-                _this.parent.getContext().font = "24px sans-serif";
+                _this.parent.getContext().font = "24px Luckiest Guy, sans-serif";
                 _this.parent.getContext().fillStyle = selected ? "#fff" : "rgba(255,255,255,0.2)";
                 _this.parent.getContext().fillText( item.label.toUpperCase(), 50, 460+(index*45));
 
@@ -659,7 +802,20 @@
         _hits = 0,          // current hits
         _maxHits = 5,       // required hits to move on
         _maxSpikes = 5,     // max spikes on screen
-        _state = 'waiting';
+        _state = 'waiting',
+        _keyTimeInit = false,
+
+        _spawnInterval,
+
+        _coins = [],
+
+
+        _randomTipIndex,
+        _tips = [
+            'The longer your press "Enter", the highter you jump.',
+            'Press shorter times to jump just a little bit',
+            'Collect coins to achieve higher scores'
+        ];
 
 
     var Level = function()
@@ -673,26 +829,20 @@
         _vOffset = (Game.height-_size)/2;
 
         this.gameOverDialog = null;
-
-        this.backgroundImage = new Image();
-        this.backgroundImage.src = 'images/background.png';
-
-        console.log(_vOffset);
     }
 
     Level.prototype = {
 
         initialize: function(){
 
-            this.scopedKeyPress = this.onKeyUp.bind(this);
-
-            window.addEventListener('keyup', this.scopedKeyPress);
+            window.addEventListener('keydown', this.onKeyDown.bind(this) );
+            window.addEventListener('keyup', this.onKeyUp.bind(this) );
 
             this.buildWalls();
             this.buildTopSpikes();
             this.buildBottomSpikes();
 
-            this.reset();
+            
         },
 
         reset: function(){
@@ -719,9 +869,13 @@
 
             _hits = 0;
             _step = 1;
-            _points = 0;
+            _points = 0,
+            _randomTipIndex = randomBetween(0,_tips.length-1);
+            _keyTimeInit = false;
 
-            for( i; i < this.spikes.length; i++ ){
+
+
+            for( i = 0; i < this.spikes.length; i++ ){
                 this.removeChild(this.spikes[i]);
                 this.removeCollision(this.spikes[i]);
             }
@@ -731,13 +885,12 @@
                 this.removeChild(this.gameOverDialog);
             }
 
-            _t = setTimeout(function(){
-                _state = 'playing';
-                _this.player.state = 'alive';
-                _this.player.reset();
-                _this.spikesDir = 'right';
-                clearTimeout(_t);
-            }, 1000);
+            _state = 'playing';
+            _this.player.state = 'alive';
+            _this.player.reset();
+            _this.spikesDir = 'right';
+            _this.player.jump(0.01);
+
         },
 
         update: function(){
@@ -752,27 +905,59 @@
                 case 'playing':
                     this.checkCollisions();
                 break;
+                case 'waiting':
+                    this.getContext().font = "18px Indie Flower, sans-serif";
+                    this.getContext().fillStyle = "#fff";
+                    this.getContext().fillText( 'Tip: ' + _tips[_randomTipIndex], 30, Game.height - 80);
+
+                    this.getContext().font = "18px Indie Flower, sans-serif";
+                    this.getContext().fillStyle = "#333";
+                    this.getContext().fillText( 'Press "Enter" to start...', (Game.width/2)-90, (Game.height/2));
+                break;
             }
         },
 
         draw: function(){
 
-            if( this.backgroundImage ) this.getContext().drawImage(this.backgroundImage,0,0);
+            this.getContext().drawImage( Game.assets.get('background') ,0,0);
 
+            if( _state === 'playing' ){
 
-            if( _state === 'playing' && _points > 0 ){
-                this.getContext().font = "120px sans-serif";
-                this.getContext().fillStyle = "rgba(0,0,0,0.1)";
-                this.getContext().fillText( _points.toString(), Game.width/2-(_points.toString().length*30), (Game.height/2)+50);
+                // only shows score if greather than 0
+                if( _points > 0 ){
+                    this.getContext().font = "120px Luckiest Guy, sans-serif";
+                    this.getContext().fillStyle = "rgba(0,0,0,0.1)";
+                    this.getContext().fillText( _points.toString(), Game.width/2-(_points.toString().length*30), (Game.height/2)+50);
+                }
+
+                // draws jump strength's rail
+                this.getContext().beginPath()
+                this.getContext().fillStyle= _keyTimeInit ? "rgba(0,0,0,0.6)" : "rgba(0,0,0,0.1)";
+                this.getContext().rect( this.player.x+(this.player.width/2) - 23, this.player.y+this.player.height + 14, 46, 4 );
+                this.getContext().fill();
+                this.getContext().closePath();
+
+                // draws jump current strenght
+                if( _keyTimeInit !== false ){
+                    var diff = new Date().getTime() - _keyTimeInit,
+                        factor = 400;
+
+                        this.getContext().beginPath()
+                        this.getContext().fillStyle="#f00";
+                        this.getContext().rect( this.player.x+(this.player.width/2) - 23, this.player.y+this.player.height + 14, (diff*46)/factor, 4 );
+                        this.getContext().fill();
+                        this.getContext().closePath();
+                }
             }
-
         },
 
+        // adds a child to the _children's array
         addChild: function( child ){
             child.parent = this;
             _children.push(child);
         },
 
+        // removes a child from the _children's
         removeChild: function(child){
             var index = _children.indexOf(child);
 
@@ -784,25 +969,33 @@
             }
         },
 
+        // adds an object for collision check
         addCollision: function(object)
         {
             _collisions.push(object);
         },
 
+        // rmemoves an object from collision's check array
         removeCollision: function(object){
             var index = _collisions.indexOf(object);
 
             if( index > -1 ) _collisions.splice(index,1);
         },
 
-        destroy: function(){
-
+        // method to be called when this screen is removed
+        destroy: function()
+        {
+            window.removeEventListener('keydown');
+            window.removeEventListener('keyup');
         },
 
-        getContext: function(){
+        // gets canvas context, from parent
+        getContext: function()
+        {
             return this.parent.getContext();
         },
 
+        // checks all collisions inside the _collisions array
         checkCollisions: function(){
 
             var _this = this;
@@ -813,37 +1006,48 @@
 
                     if( a.name === b.name ) return;
 
+                    // in order for a collision to happen, all objects
+                    // must implement a property name 'bounds' of type ObjectBounds
                     if( a.getBounds().intersects(b.getBounds()) ){
-                        a.intersectWith.call( a, b );
-                        //a.events.dispatch('hasCo');
+                        a.events.dispatch('intersect',b);
                     }
 
                 });
             });
         },
 
+        // listener for keyup events
         onKeyUp: function(evt){
 
+            var diff;
+
             if(evt.keyCode===13 && _state==='playing') {
-                this.player.jump();
 
-                var p = new Particles(20,1,0.3);
+                diff = new Date().getTime() - _keyTimeInit;
 
-                p.x = this.player.x + (this.player.width/2);
-                p.y = this.player.y + (this.player.height);
+                this.player.jump(diff/400);
 
-                p.context = this.getContext();
+                _keyTimeInit = false;
 
-                this.addChild(p);
+            }
 
-
-
-                p.start();
+            if(evt.keyCode === 13 && _state==='waiting'){
+                this.reset();
             }
         },
 
+        // listener for keydown events
+        onKeyDown: function(evt){
+
+            if( evt.keyCode === 13 && _keyTimeInit === false && _state === 'playing' ){
+                _keyTimeInit = new Date().getTime();
+            }
+
+        },
+
+        // builds walls around the game area
         buildWalls: function(){
-            var leftWall = new Block('images/left-wall.png');
+            var leftWall = new Block(Game.assets.get('leftWall'));
             leftWall.width = _hOffset;
             leftWall.height = Game.height;
             leftWall.x = 0;
@@ -852,9 +1056,8 @@
             this.addChild(leftWall);
             this.addCollision(leftWall);
 
-            console.log(leftWall);
 
-            var rightWall = new Block('images/right-wall.png');
+            var rightWall = new Block(Game.assets.get('rightWall'));
             rightWall.width = _hOffset;
             rightWall.height = Game.height;
             rightWall.x = _size + _hOffset;
@@ -863,7 +1066,7 @@
             this.addChild(rightWall);
             this.addCollision(rightWall);
 
-            var ceil = new Block('images/top-wall.png');
+            var ceil = new Block(Game.assets.get('topWall'));
             ceil.width = _size;
             ceil.height = _vOffset;
             ceil.x = _hOffset;
@@ -871,7 +1074,7 @@
             this.addChild(ceil);
             this.addCollision(ceil);
 
-            var floor = new Block('images/bottom-wall.png');
+            var floor = new Block(Game.assets.get('bottomWall'));
             floor.width = _size;
             floor.height = _vOffset;
             floor.x = _hOffset;
@@ -889,7 +1092,6 @@
             for( i; i < _maxSpikes; i++ ) {
                 s = new Spike('top');
                 s.name = 'spike';
-
                 s.x = (spikeGap*i) + _hOffset + ((spikeGap-s.width)/2);
                 s.y = _vOffset;
 
@@ -898,6 +1100,7 @@
             }
         },
 
+        // builds bottom spykes
         buildBottomSpikes: function(){
             var i = 0,
                 s,
@@ -915,10 +1118,11 @@
             }
         },
 
-        generateSpikes: function(){
+        // builds spikes
+        generateSpikes: function()
+        {
 
-
-            var spikeHeight = _size / _maxSpikes,
+            var spikeGap = _size / _maxSpikes,
                 i = 0, map, s;
 
             for( i; i < this.spikes.length; i++ ){
@@ -937,12 +1141,8 @@
                 s = new Spike(this.spikesDir);
                 s.name = 'spike';
                 s.direction = this.spikesDir;
-                //s.width = 24;
-                //s.height = 56;
-
-
                 s.x = this.spikesDir === 'left' ? _hOffset : (Game.width-_hOffset) - (s.width);
-                s.y = (i*spikeHeight) + (spikeHeight/2) - (s.height/2) + _vOffset;
+                s.y = (i*spikeGap) + (spikeGap/2) - (s.height/2) + _vOffset;
 
                 this.addChild(s);
                 this.addCollision(s);
@@ -951,7 +1151,9 @@
 
         },
 
-        playerTouchedWalls: function( args ){
+        playerTouchedWalls: function( args )
+        {
+            var _this = this;
 
             _points++;
             _hits++;
@@ -963,11 +1165,45 @@
 
             this.spikesDir = this.spikesDir == 'right' ? 'left' : 'right';
             this.generateSpikes();
+
+            // will initiate coin's spawn interval if not initiated
+            if( !_spawnInterval ){
+                _spawnInterval = setInterval(function(){
+
+                    if( Math.random() > 0.15 ){
+                        var c = new Coin();
+                        _this.addChild(c);
+                        _this.addCollision(c);
+
+                        c.x = randomBetween(_hOffset+100, _hOffset+_size-100);
+                        c.y = _vOffset+32;
+
+                        c.events.on('intersect', function(b){
+
+                            if(b.name === 'player'){
+                                _points += 4;
+                                c.events.dispatch('collected')
+                            }
+
+                            _this.removeChild(c);
+                            _this.removeCollision(c);
+
+
+                        });
+
+                        _coins.push(c);
+                    }
+
+                }, 1200 );
+            }
         },
 
+
+        // if player touches any spike, this method is called
+        // this is where the game 'ends'
         playerTouchedSpyke: function( args )
         {
-            var p, _this = this;
+            var _this = this, p, explosion, i = 0;
 
             if(_state === 'game-over') return;
 
@@ -975,34 +1211,42 @@
             this.player.state = 'dead';
 
 
-            var _spritesheetData = {
-                bum: { frames: [0,1,2,3,4], loop: false }
-            };
+            var explosion = new Spritesheet( Game.assets.get('explosion') ,118, 118, { bum: { frames: [0,1,2,3,4], loop: false } }, 'horizontal' );
 
-            var explosion = new Spritesheet('images/explosion.png',118, 118, _spritesheetData, 'horizontal' );
             this.addChild(explosion);
+
             explosion.playAnimation('bum');
             explosion.setFPS(30);
 
             explosion.x = this.player.x - (this.player.width/2) + 5;
-            explosion.y = this.player.y - (this.player.height/2) - 10;
+            explosion.y = this.player.y - (this.player.height/2) + 10;
+
 
             explosion.events.on('animationend', function(){
                 _this.removeChild(explosion);
             });
 
+            // removes all the current coin on stage and clears coin's spawn interval
+            clearTimeout(_spawnInterval);
+            for( i; i < _coins.length; i++ ){
+                this.removeChild(_coins[i]);
+                this.removeCollision(_coins[i]);
+            }
 
+
+            // delays 2s and shows game over screen
             var _t = setTimeout(function(){
                 _this.gameOverDialog = new GameOver(_points);
                 _this.addChild(_this.gameOverDialog);
-
                 clearTimeout(_t);
-            },1000);
+            }, 2000 );
         }
     }
 
     window.Level = Level;
 
+    // generates spikes map - an array of values of 0 or 1's
+    // something like: [0,0,1,0,1], where 1's will be filled with a spike
     function generateSpikeMapCombination( total, max ){
         var map = [],
             cnt = 0,
@@ -1047,8 +1291,12 @@
 
     Menu.prototype = {
 
-        initialize: function(){
+        initialize: function()
+        {
+            var loop = Game.assets.get('gameLoop');
 
+            loop.loop = true;
+            loop.play();
         },
 
         update: function(){
@@ -1059,9 +1307,11 @@
 
             var _this = this;
 
-            _this.parent.getContext().font = "48px sans-serif";
-            _this.parent.getContext().fillStyle = "#fff";
-            _this.parent.getContext().fillText("MENU", 20, 120);
+            _this.parent.getContext().drawImage( Game.assets.get('background'), 0, 0 );
+
+            _this.parent.getContext().font = "32px Luckiest Guy, sans-serif";
+            _this.parent.getContext().fillStyle = "rgba(0,0,0,0.8)";
+            _this.parent.getContext().fillText("Select and option...", 20, 120);
 
             _this.buttons.forEach(function(item, index){
 
@@ -1069,14 +1319,14 @@
 
                 var selected = _this.selectedIndex === index;
 
-                _this.parent.getContext().font = "24px sans-serif";
-                _this.parent.getContext().fillStyle = selected ? "#fff" : "#666";
-                _this.parent.getContext().fillText( item.label.toUpperCase(), 50, 200+(index*45));
+                _this.parent.getContext().font = "48px Luckiest Guy,sans-serif";
+                _this.parent.getContext().fillStyle = selected ? "#333" : "rgba(0,0,0,0.2)";
+                _this.parent.getContext().fillText( item.label, 50, 320+(index*80));
 
                 if( index === _this.selectedIndex ){
                     _this.parent.getContext().beginPath();
-                    _this.parent.getContext().fillStyle = "#fff";
-                    _this.parent.getContext().rect(26, 186+(index*45), 10, 10);
+                    _this.parent.getContext().fillStyle = "#333";
+                    _this.parent.getContext().rect(26, 300+(index*76), 10, 10);
                     _this.parent.getContext().fill();
                     _this.parent.getContext().closePath();
                 }
@@ -1111,37 +1361,105 @@
 })();
 ;(function(){
 
+    var Splash = function(){
+
+        this.loader = new AssetsManager();
+
+        this.loader.add({
+            background      : 'images/background.png',
+            bird            : 'images/bird.png',
+            bottomSpikes    : 'images/bottom-spikes.png',
+            bottomWall      : 'images/bottom-wall.png',
+            coin            : 'images/coin.png',
+            explosion       : 'images/explosion.png',
+            leftSpikes      : 'images/left-spikes.png',
+            leftWall        : 'images/left-wall.png',
+            rightSpikes     : 'images/right-spikes.png',
+            rightWall       : 'images/right-wall.png',
+            topSpikes       : 'images/top-spikes.png',
+            topWall         : 'images/top-wall.png',
+            jump            : 'sfx/jump.mp3',
+            coinCollected   : 'sfx/success.mp3',
+            gameLoop        : 'sfx/game-loop.mp3'
+        });
+
+    }
+
+    Splash.prototype = {
+
+        initialize: function()
+        {
+            this.loader.start();
+
+            this.loader.events.on('complete', this.loaderCompleted.bind(this) );
+        },
+
+        update: function()
+        {
+            this.draw();
+        },
+
+        draw: function(){
+
+            var _this = this;
+
+            _this.parent.getContext().font = "84px Luckiest Guy, sans-serif";
+            _this.parent.getContext().fillStyle = "#fff";
+            _this.parent.getContext().fillText( parseInt(this.loader.progress*100).toString()+'%', Game.width/2-90, Game.height/2+30);
+
+            _this.parent.getContext().font = "28px Indie Flower, sans-serif";
+            _this.parent.getContext().fillStyle = "#fff";
+            _this.parent.getContext().fillText('Please wait...!', Game.width/2-74, Game.height/2+90);
+        },
+
+        loaderCompleted: function()
+        {
+            Game.assets = this.loader;
+
+            var _t, _this = this;
+
+            _t = setTimeout(function(){
+                _this.parent.change(Menu);
+            },1000);
+        },
+
+        destroy: function()
+        {
+
+        }
+    }
+
+    window.Splash = Splash;
+
+})();
+;(function(){
+
     function Spritesheet( image, frameWidth, frameHeight, animations, orientation, fps ){
 
-        var _img;
+        this.image = image;                                 // image object
+        this.width = frameWidth;                            // base frame width
+        this.height = frameHeight;                          // base frame height
+        this.orientation = orientation || 'horizontal';     // spritesheet orientation: vertical or horizontal
+        this.frameIndex = 0;                                // current frame index
+        this.animations = animations;                       // all animations
+        this.currentAnimation = null;                       // current animation object
+        this.currentAnimationName = '';                     // current animation key/name
+        this.fps = fps || 24;                               // frames per second: default is 24
 
-        _img = new Image();
-        _img.src = image;
-        _img.onload = this.spriteLoaded.bind(this);
-
-        this.image = _img;
-        this.width = frameWidth;
-        this.height = frameHeight;
-        this.orientation = orientation || 'horizontal';
-        this.frameIndex = 0;
-        this.animations = animations;
-        this.currentAnimation = null;
-        this.currentAnimationName = '';
-
-        this._isLoaded = false;
-
-        this.fps = fps || 24;
-        this.setFPS(this.fps);
-
+        this.setFPS(this.fps);                              // sets it's inicial fps, and calculates tick interval duration
         this.events = new Events();
+
+        this._lastTick = 0;
     }
 
     Spritesheet.prototype = {
+
+        // renders the current frame of the current animation
         render: function(){
             var ctx = this.parent.getContext(),
                 x, y, d;
 
-            if( !this._isLoaded && !this.currentAnimation ) return;
+            if( !this.currentAnimation ) return;
 
             if( (d=new Date().getTime()) - this._lastTick > this._int ){
 
@@ -1165,7 +1483,7 @@
             if( this.orientation === 'horizontal' ){
                 x = this.currentAnimation.frames[this.frameIndex] * this.width;
                 y = 0;
-            } else {
+            } else if( this.orientation === 'vertical' ) {
                 x = 0;
                 y = this.currentAnimation.frames[this.frameIndex] * this.height;
             }

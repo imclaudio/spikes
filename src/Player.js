@@ -4,12 +4,12 @@
         _velocity = [5,0],
         _gravity = 0.25,
         _vy = 0,
-        _jumpVelocity = -7,
+        _jumpVelocity = -5,
         _py = 0,
         _vx = 5,
         _px = 0,
         _py = 0,
-        _state = 'alive';
+        _state = 'iddle';
 
     Player = function( x, y){
         this.parent = null;
@@ -31,7 +31,7 @@
             backwards: { frames: [2,3], loop: true }
         };
 
-        this.animation = new Spritesheet('images/bird.png', 65, 40, _spritesheetData, 'vertical');
+        this.animation = new Spritesheet( Game.assets.get('bird'), 65, 40, _spritesheetData, 'vertical');
         this.animation.setFPS(7);
         this.animation.playAnimation(this.currentAnimationName);
 
@@ -40,9 +40,11 @@
 
         this.bounds = new ObjectBounds( this.x, this.y, this.width, this.height );
 
-        this.animation.events.on('animationend', function(args){
+        this.events.on('intersect', this.onIntersect.bind(this) );
 
-        });
+        this.name = 'player';
+
+        this._jumpSound = Game.assets.get('jump');
     }
 
     Player.prototype = {
@@ -70,17 +72,13 @@
                 this.animation.x = this.x;
                 this.animation.y = this.y;
             }
-
-
-
-            /*this.parent.getContext().beginPath();
-            this.parent.getContext().fillStyle = "rgba(0,0,0,0.5)";
-            this.parent.getContext().rect( this.x , this.y , this.width, this.height);
-            this.parent.getContext().fill();
-            this.parent.getContext().closePath();*/
         },
-        jump: function(){
-            _vy = _jumpVelocity;
+        jump: function(perc){
+            perc = perc*1.5;
+            _vy = _jumpVelocity + (_jumpVelocity*perc);
+
+            this._jumpSound.currentTime = 0;
+            this._jumpSound.play();
         },
         getBounds: function(){
 
@@ -88,7 +86,8 @@
 
             return this.bounds;
         },
-        intersectWith: function( b ){
+
+        onIntersect: function( b ){
             if( b.name === 'leftWall' || b.name === 'rightWall' ){
                 _vx = -_vx;
 

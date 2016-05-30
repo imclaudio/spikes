@@ -1,26 +1,14 @@
 (function(){
 
-    var Block = function(image){
+    var Block = function(image)
+    {
         this.x = 0;
         this.y = 0;
-
         this.height = 40;
         this.width = 40;
-
         this.bounds = new ObjectBounds( this.x, this.y, this.width, this.height );
-
-        this.image = null;
-
-        if(image){
-            var _img = new Image(), _this = this;
-            _img.src = image;
-            _img.onload = function(){
-                _this._isLoaded = true;
-            }
-            this.image = _img;
-        }
-
-        this._isLoaded = false;
+        this.image = image;
+        this.events = new Events();
     }
 
     Block.prototype = {
@@ -30,22 +18,7 @@
         },
         draw: function(){
             var ctx = this.parent.getContext();
-
-            ctx.beginPath();
-            ctx.fillStyle = "#00A0B1";
-            ctx.rect( this.x , this.y, this.width, this.height );
-            ctx.fill();
-            ctx.closePath();
-
-            if( this.image != null && this._isLoaded ){
-                ctx.drawImage( this.image, 0, 0, this.width, this.height, this.x, this.y, this.width, this.height );
-            } else {
-                ctx.beginPath();
-                ctx.fillStyle = "#00A0B1";
-                ctx.rect( this.x , this.y, this.width, this.height );
-                ctx.fill();
-                ctx.closePath();
-            }
+            ctx.drawImage( this.image, 0, 0, this.width, this.height, this.x, this.y, this.width, this.height );
         },
         getBounds: function(){
 

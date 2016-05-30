@@ -2,35 +2,30 @@
 
     function Spritesheet( image, frameWidth, frameHeight, animations, orientation, fps ){
 
-        var _img;
+        this.image = image;                                 // image object
+        this.width = frameWidth;                            // base frame width
+        this.height = frameHeight;                          // base frame height
+        this.orientation = orientation || 'horizontal';     // spritesheet orientation: vertical or horizontal
+        this.frameIndex = 0;                                // current frame index
+        this.animations = animations;                       // all animations
+        this.currentAnimation = null;                       // current animation object
+        this.currentAnimationName = '';                     // current animation key/name
+        this.fps = fps || 24;                               // frames per second: default is 24
 
-        _img = new Image();
-        _img.src = image;
-        _img.onload = this.spriteLoaded.bind(this);
-
-        this.image = _img;
-        this.width = frameWidth;
-        this.height = frameHeight;
-        this.orientation = orientation || 'horizontal';
-        this.frameIndex = 0;
-        this.animations = animations;
-        this.currentAnimation = null;
-        this.currentAnimationName = '';
-
-        this._isLoaded = false;
-
-        this.fps = fps || 24;
-        this.setFPS(this.fps);
-
+        this.setFPS(this.fps);                              // sets it's inicial fps, and calculates tick interval duration
         this.events = new Events();
+
+        this._lastTick = 0;
     }
 
     Spritesheet.prototype = {
+
+        // renders the current frame of the current animation
         render: function(){
             var ctx = this.parent.getContext(),
                 x, y, d;
 
-            if( !this._isLoaded && !this.currentAnimation ) return;
+            if( !this.currentAnimation ) return;
 
             if( (d=new Date().getTime()) - this._lastTick > this._int ){
 
@@ -54,7 +49,7 @@
             if( this.orientation === 'horizontal' ){
                 x = this.currentAnimation.frames[this.frameIndex] * this.width;
                 y = 0;
-            } else {
+            } else if( this.orientation === 'vertical' ) {
                 x = 0;
                 y = this.currentAnimation.frames[this.frameIndex] * this.height;
             }
